@@ -1,69 +1,102 @@
 defmodule Product do
 
 
+  def next(enums, root_enums) do
+    {overflow, enums, _} =
+      enums
+      |> List.foldl({true, [], root_enums},
+        fn [_ | []],   {true,  acc, [ root | root_enums]} -> {true,  [root | acc], root_enums}
+           [_ | tail], {true,  acc, [_root | root_enums]} -> {false, [tail | acc], root_enums}
+           enum,       {false, acc, [_root | root_enums]} -> {false, [enum | acc], root_enums}
+        end)
 
-  def increment_cursor(cursor, depth, max, carry) do
-        cursor
-        |> List.foldr(
-          {carry, false, []},
-          fn elem, {carry, unique, acc} ->
-            case elem + carry do
-              ^depth -> {1, unique, [0   | acc]}
-              ^max   -> {0, true  , [max | acc]}
-               sum   -> {0, unique, [sum | acc]}
-            end
-          end)
-    end
-
-
-  def next(enums, roots) do
-    enums
-    |> List.foldr({true, [], roots},
-      fn [_ | []],   {true,  acc, [ root | roots]} ->  {true,  [root | acc], roots}
-         [_ | tail], {true,  acc, [_root | roots]} -> {false, [tail | acc], roots}
-         enum,       {false, acc, [_root | roots]} -> {false, [enum | acc], roots}
-      end)
+    {overflow, Enum.reverse(enums)}
   end
 
-  def unique_next(enums, roots, scope, scope_roots) do
-    case next(enums, roots) do
-      {true, _, _} ->
-        {overflow, scopes, _} = next(scope, scope_roots)
-        {overflow, Enum.map(scopes, fn [head | _] -> [head] end), scopes}
-      {false, enums, _} ->
-        {false, enums, scope}
+  def unique_next(enums, root_enums, scopes, root_scopes) do
+    case next(enums, root_enums) do
+      {true, _} ->
+        {overflow, scopes} = next(scopes, root_scopes)
+        {overflow, cursor(scopes), cursor(scopes), scopes}
+      {false, enums} ->
+        {false, enums, root_enums, scopes}
     end
   end
 
-  def create_cursor(enums) do
+  def cursor(enums) do
     enums
     |> Enum.map(fn [head | _] -> head end)
-    |> List.to_tuple
   end
 
-  def do_example(enums, roots, scope, scope_roots, acc) do
-    case unique_next(enums, roots, scope, scope_roots) do
-      {false, enums, scope} ->
-        do_example(enums, roots, scope, scope_roots, [create_cursor(enums) | acc])
-      {true, _, _} -> acc
+
+  def do_example(enums, root_enums, scopes, root_scopes, acc) do
+    case unique_next(enums, root_enums, scopes, root_scopes) do
+      {false, enums, root_enums, scopes} ->
+        do_example(enums, root_enums, scopes, root_scopes, [cursor(enums) | acc])
+      {true, _, _, _} -> acc
     end
   end
 
   def example(enums) do
-    scope = Enum.map(enums, fn [head | tail] -> [head, tail] end)
-    do_example(enums, enums, scope, scope, [create_cursor(enums)])
+    root_scopes = Enum.map(enums, fn
+      [nil | tail] -> [tail]
+      [head | tail] -> [tail, [head]]
+    end)
+    {false, scopes} = next(root_scopes, root_scopes)
+    root_enums = cursor(scopes)
+
+    do_example(root_enums, root_enums, scopes, root_scopes, [cursor(root_enums)])
   end
 
-# @spec product(Enumerable.t, Enumerable.t) :: Enumerable.t
-#   def product(left, right) do
-#     step      = &do_product_step(&1, &2)
-#
-#     &Enumerable.reduce(enum, &1, step)
-#   end
-#
-#   defp do_product_step(x, []) do
-#     {:cont, [x]}
-#   end
+
+
+
+
+@spec product(Enumerable.t, Enumerable.t) :: Enumerable.t
+  def product(left, right) do
+    product([left, right])
+  end
+
+  def product(enum) do
+    step = &do_product_step(&1, &2)
+
+  end
+
+  defp do_product_step(x, []) do
+    {:cont, [x]}
+  end
+
+
+
+  defp do_product(products, {:halt, acc}, _fun) do
+    do_zip_close(products)
+    {:halted, acc}
+  end
+
+  defp do_product(products, {:suspend, acc}, fun) do
+    {:suspended, acc, &do_zip(products, &1, fun)}
+  end
+
+  defp do_product(products, {:cont, acc}, callback) do
+    try do
+      do_zip_next_tuple(products, acc, callback, [], [])
+    catch
+      kind, reason ->
+        stacktrace = System.stacktrace
+        do_zip_close(zips)
+        :erlang.raise(kind, reason, stacktrace)
+    else
+      {:next, buffer, acc} ->
+        do_zip(buffer, acc, callback)
+      {:done, _acc} = other ->
+        other
+    end
+  end
+
+  defp do_product_close(products) do
+    :lists.foreach(fn {fun, _} -> fun.({:halt, []}) end, products)
+  end
+
 #
 # defp product_next() do
 #

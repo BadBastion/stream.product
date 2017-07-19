@@ -18,6 +18,7 @@ defmodule Product.Mixfile do
     [extra_applications: [:logger]]
   end
 
+
   # Dependencies can be Hex packages:
   #
   #   {:my_dep, "~> 0.3.0"}
@@ -28,6 +29,8 @@ defmodule Product.Mixfile do
   #
   # Type "mix help deps" for more examples and options
   defp deps do
-    []
+    [
+      {:credo, "~> 0.8", only: [:dev, :test], runtime: false}
+    ]
   end
 end
