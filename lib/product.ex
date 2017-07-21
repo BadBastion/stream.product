@@ -1,16 +1,42 @@
 defmodule Product do
 
+  # def next_pair(%{dir: dir, x: x, y: y} = old_pair) do
+  #   if x > 1 && y > 1,
+  #   do: %{dir: dir, x: x+dir, y: y-dir},
+  #   else: if x < y,
+  #       do: %{dir: (dir * -1), x: x+1, y: y},
+  #       else: %{dir: (dir * -1), x: x, y: y+1}
+  # end
+  #
+  # def do_pairs(pair) do
+  #   new_pair = pair|> next_pair
+  #   IO.inspect(new_pair)
+  #   do_pairs(new_pair)
+  # end
+  # def pairs() do
+  #   do_pairs(next_pair(%{dir: 1, x: 1, y: 1}))
+  # end
 
   def next(enums, root_enums) do
     {overflow, enums, _} =
       enums
-      |> List.foldl({true, [], root_enums},
-        fn [_ | []],   {true,  acc, [ root | root_enums]} -> {true,  [root | acc], root_enums}
-           [_ | tail], {true,  acc, [_root | root_enums]} -> {false, [tail | acc], root_enums}
-           enum,       {false, acc, [_root | root_enums]} -> {false, [enum | acc], root_enums}
-        end)
+      |> List.foldl({true, [], root_enums}, fn
+        [_ | []],   {true,  acc, [ root | root_enums]} -> {true,  [root | acc], root_enums}
+        [_ | tail], {true,  acc, [_root | root_enums]} -> {false, [tail | acc], root_enums}
+        enum,       {false, acc, [_root | root_enums]} -> {false, [enum | acc], root_enums}
+      end)
 
     {overflow, Enum.reverse(enums)}
+  end
+
+
+  def next(cursor, head) do
+      Stream.zip(cursor, head)
+      |> List.foldr({true, []}, fn
+        {[_ | []],    head}, {true,  acc} -> {true,  [head | acc]}
+        {[_ | tail], _head}, {true,  acc} -> {false, [tail | acc]}
+        {enum, _head},       {false, acc} -> {false, [enum | acc]}
+      end)
   end
 
   def unique_next(enums, root_enums, scopes, root_scopes) do
@@ -39,8 +65,8 @@ defmodule Product do
 
   def example(enums) do
     root_scopes = Enum.map(enums, fn
-      [nil | tail] -> [tail]
-      [head | tail] -> [tail, [head]]
+      [nil | tail] -> [Enum.reverse(tail)]
+      [head | tail] -> [Enum.reverse(tail), [head]]
     end)
     {false, scopes} = next(root_scopes, root_scopes)
     root_enums = cursor(scopes)
@@ -65,8 +91,6 @@ defmodule Product do
   defp do_product_step(x, []) do
     {:cont, [x]}
   end
-
-
 
   defp do_product(products, {:halt, acc}, _fun) do
     do_zip_close(products)
@@ -106,13 +130,11 @@ defmodule Product do
 #
 #
 #
-#   def map(fun) do
-#
-#     fn(f1) ->
-#       fn entry, acc ->
-#         f1.(fun.(entry), acc)
-#       end
-#     end
+  def map(map_func) do
+      fn elem, acc ->
+        acc ++ [ map_func.(elem) ]
+      end
+  end
 #
 #   end
 #
